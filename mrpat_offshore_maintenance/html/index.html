@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<link rel="stylesheet" href="style.css">
+	</head>
+	<body>
+		<div id="voltmeter" class="minigame">
+			<div class="header">
+				<span id="voltmeterTitle" class="title">VOLTMETER</span>
+				<span id="voltmeterStatus" class="readout"></span>
+				<span class="readout"><span id="volts">0.0</span> V</span>
+			</div>
+		
+			<div id="meter">
+				<div id="zone"></div>
+				<div id="needle"></div>
+			</div>
+		
+			<div class="scale">
+				<span>0</span><span>3</span><span>6</span><span>9</span><span>12</span><span>15</span>
+			</div>
+		
+			<p id="voltmeterHint" class="hint"></p>
+		</div>
+
+		<div id="bolts" class="minigame">
+			<div class="header">
+				<span id="boltsTitle" class="title">LAMP HOUSING</span>
+				<span id="boltsStatus" class="readout">WATCH</span>
+			</div>
+
+			<div class="bolt-plate">
+				<div class="bolt" data-index="0"></div>
+				<div class="bolt" data-index="1"></div>
+				<div class="bolt" data-index="2"></div>
+				<div class="bolt" data-index="3"></div>
+				<div class="bolt" data-index="4"></div>
+				<div class="bolt" data-index="5"></div>
+				<div class="bolt" data-index="6"></div>
+				<div class="bolt" data-index="7"></div>
+				<div class="bolt" data-index="8"></div>
+				<div class="bolt" data-index="9"></div>
+				<div class="bolt" data-index="10"></div>
+				<div class="bolt" data-index="11"></div>
+			</div>
+
+			<p id="boltsHint" class="hint"></p>
+
+		</div>
+
+		<div id="wires" class="minigame">
+			<div class="header">
+				<span id="wiresTitle" class="title">WIRES</span>
+				<span id="wiresStatus" class="readout"></span>
+			</div>
+
+			<div id="wireBoard" class="wire-board">
+				<div id="wiresLeft" class="wire-column"></div>
+				<svg id="wireSvg" class="wire-svg"></svg>
+				<div id="wiresRight" class="wire-column"></div>
+			</div>
+
+			<p id="wiresHint" class="hint"></p>
+		</div>
+
+		<div id="steady" class="minigame">
+			<div class="header">
+				<span id="steadyTitle" class="title">Hold Steady</span>
+				<span class="readout"><span id="steadyPercent">0</span>%</span>
+			</div>			
+
+			<div class="steady-wrap">
+				<div class="steady-bar">
+					<div id="steadyZone"></div>
+					<div id="steadyIndicator"></div>
+				</div>
+			</div>
+
+			<div class="steady-progress">
+				<div id="steadyFill"></div>
+			</div>
+
+			<p id="steadyHint" class="hint"></p>
+		</div>
+
+		<div id="pumping" class="minigame">
+			<div class="header">
+				<span id="pumpingTitle" class="title">WATER POMP</span>
+				<span id="pumpingStatus" class="readout"></span>
+			</div>
+
+			<div class="pump-wrap">
+				<div class="pump-tank">
+					<div id="pumpWater"></div>
+				</div>
+				<div class="pump-gauge">
+					<div id="pumpPressure"></div>
+				</div>
+			</div>
+
+			<p id="pumpingHint" class="hint"></p>
+		</div>
+
+		<div id="code" class="minigame">
+			<div class="header">
+				<span id="codeTitle" class="title">Code Entry</span>
+				<span id="codeStatus" class="readout"></span>
+			</div>
+
+			<div id="codeHistory" class="code-history"></div>
+			<div id="codeInput" class="code-row current"></div>
+
+			<p id="codeHint" class="hint"></p>
+		</div>
+
+		<script src="script.js"></script>
+	</body>
+</html>
