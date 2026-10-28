@@ -34,6 +34,11 @@
 	"offshore_maintenance_deposit": "Offshore maintenance vessel deposit",
 	"offshore_maintenance_pay": "Offshore maintenance payment",
 
+	"urgent_contract": "Urgent contract! Finish the repair within %s for a bonus.",
+	"urgent_warning": "Urgent contract: %s left for the bonus.",
+	"urgent_missed": "Time's up, the urgent bonus is missed.",
+	"urgent_in_time": "Repaired in time! The bonus is paid when you report back.",
+
 	"no_character_loaded": "No character loaded.",
 	"invalid_paymenttype": "Invalid payment method.",
 	"contract_already_active": "You already have an active job.",

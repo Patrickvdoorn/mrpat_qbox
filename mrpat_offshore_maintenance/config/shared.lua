@@ -2,7 +2,7 @@ Config = {}
 
 -- Test commands for placing locations and tuning minigames (see README, Debug tools).
 -- Takes effect after a restart. Never turn this on on a live server!
-Config.Debug = true
+Config.Debug = false
 
 -- The foreman who hands out contracts and takes vessels back.
 Config.NPC = {

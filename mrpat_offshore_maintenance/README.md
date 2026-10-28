@@ -23,6 +23,8 @@ A job takes players from the harbor to open water and back, with a real decision
 
 After a completed job, the next contract never sends a player to the same location, or gives them the same fault, twice in a row.
 
+Now and then a contract turns out to be **urgent**. The player finds out right after taking it: finish the repair within the time limit and the job pays a bonus on top. Notifications count down the last minutes, and say whether the repair made it in time.
+
 ## Built for server owners
 
 Every decision that touches money or progress is made on the server, so a modified client cannot pay or level itself.
@@ -32,8 +34,9 @@ Every decision that touches money or progress is made on the server, so a modifi
 - **Diving gear that just works.** Built-in scuba with a visible tank and mask, no items needed. Want players to bring their own gear, or use a different diving script? Both are a hook away.
 - **Works from a submarine.** Contract types can use a key prompt instead of ox_target, so equipment can be inspected without leaving the vehicle. Each contract type can also set its own draw distance, so equipment far below the surface spawns in time.
 - **Exploit-resistant by design.** Repairs must be one of the options offered, repairs are rate-limited on the server, locked contract types are refused on the server, and each contract pays out only once.
+- **Urgent contracts.** A random share of contracts comes with a time limit and a bonus. The server rolls the chance, keeps the deadline and decides whether the repair was in time, so a modified client cannot claim the bonus.
 - **Deposits that mean something.** A sunk, destroyed, crushed or abandoned vehicle keeps the deposit, but a finished repair is still paid out, with its experience. Only the deposit is at risk. Players are warned before they give one up. Refunds always return exactly what was paid, even if the config changes in the meantime. Set the deposit to 0 to turn it off.
-- **Startup config checks.** Mistakes in the level curve, contract types, locations, faults, tests, zones, sonar, draw distances, interaction types, repair difficulties and general settings are reported in the server console when the resource starts, not halfway through a player's job.
+- **Startup config checks.** Mistakes in the level curve, contract types, locations, faults, tests, zones, sonar, draw distances, interaction types, repair difficulties, urgent contracts and general settings are reported in the server console when the resource starts, not halfway through a player's job.
 - **Clean up after itself.** Vehicles, props, diving gear, prompts and the foreman are removed on job end, logout, disconnect and resource restart.
 - **Player statistics.** Every character keeps a record of repairs, lost vessels and abandoned contracts, shown at the foreman. Stored in qbx_core metadata, no database table needed, and one setting turns it off.
 - **Logging for owners.** Job starts, repairs, payouts, XP, lost deposits and disconnects are logged through ox_lib's logger, to Fivemanage, Grafana Loki or Datadog. Suspicious actions carry a `suspicious` tag for one-click filtering.
@@ -60,9 +63,10 @@ Everything that shapes the job lives in three config files:
 | `Config.AdminPermissions` | server | Which ACE groups may use the `/offshore` admin command | `group.admin`, `group.mod` |
 | `Config.Debug` | shared | Turns on the test commands (see [Debug tools](#debug-tools)). Takes effect after a restart; never use it on a live server | off |
 | `Config.LevelCurve` | shared | How much XP each level needs: number of levels, XP for the first level-up, and how much more each next level costs | 20 levels, 60 XP, +20% per level |
-| `Config.Tiers` | shared | Contract types: required level, location types, vehicle, pay, XP, gear, blip mode, zone radius, draw distance, interaction type, repair difficulties and an optional own deposit | 4 tiers (surface, seabed, deep sea, wreck search) |
+| `Config.Tiers` | shared | Contract types: required level, location types, vehicle, pay, XP, gear, blip mode, zone radius, draw distance, interaction type, repair difficulties, urgent time limit and an optional own deposit | 4 tiers (surface, seabed, deep sea, wreck search) |
 | `Config.Tests` | shared | The diagnostic tests, how long each one takes and which location types they apply to | 12 tests |
 | `Config.Deposit` | shared | Default deposit, used when a tier has no `deposit` of its own (0 turns deposits off) | 150 |
+| `Config.UrgentContract` | shared | Chance that a contract is urgent, the bonus for finishing in time and the warning moments (see [Urgent contracts](#urgent-contracts)) | 2% chance, 5% bonus, warnings at 5, 2 and 1 minutes left |
 | `Config.InteractionDistance` | shared | How close players must be to the equipment, checked by the server and used for the key prompt | 10 m |
 | `Config.RepairDuration` | shared | Time a repair attempt takes | 10 s |
 | `Config.NPC` | shared | Foreman model, position, blip and interaction distances | dock worker |
@@ -107,6 +111,7 @@ Players earn XP for every completed repair, paid out when they report back to th
   - `difficulties` (optional), the minigame difficulties a repair in this tier can get: `'easy'`, `'medium'` and/or `'hard'`. With more than one, every repair attempt picks one at random. Missing or empty means every repair is `'medium'`; an invalid value is reported at startup and skipped.
   - `deposit` (optional), to override `Config.Deposit` for this tier
   - `sonar` (optional), `true` gives the player a sonar inside the search zone. Needs `blip = 'area'` with a valid `radius`; without a search zone the tier gets no sonar, and the server console warns you at startup.
+  - `urgentTimeLimit` (optional), the seconds a player has on an urgent contract of this tier, counted from taking the contract to finishing the repair. Missing means this tier's contracts are never urgent.
 
 A search zone is centred at a random spot near the equipment, so players still have to look for it. Once the repair is done, the zone disappears from the map.
 
@@ -136,7 +141,7 @@ The default types:
 3. Add `'pier_light'` to the `types` of each test in `Config.Tests` that applies to this equipment.
 4. Add `'pier_light'` to the `types` of existing faults that fit, or add new faults, with a reading for every test of that type.
 
-The startup checks warn you when a type is in two tiers, when a location type has no tier or no fault, when a tier type has no location, when a fault is missing a reading for one of its tests, when a tier needs a level that does not exist, when a search zone has no valid radius, when a tier has a sonar but no search zone, or when a level curve value, repair difficulty, draw distance, interaction type or deposit is invalid.
+The startup checks warn you when a type is in two tiers, when a location type has no tier or no fault, when a tier type has no location, when a fault is missing a reading for one of its tests, when a tier needs a level that does not exist, when a search zone has no valid radius, when a tier has a sonar but no search zone, or when a level curve value, repair difficulty, draw distance, interaction type, deposit, urgent time limit or urgent contract setting is invalid.
 
 **Using your own skills or XP resource?** Replace the bodies of `Config.Experience.get` and `Config.Experience.set` in `config/server.lua`. Everything else keeps working.
 
@@ -165,6 +170,16 @@ The wreck tier sends players to a leaking wreck somewhere in a search zone of 30
 - Players can switch the sonar off and on with a key (`J` by default, rebindable in the FiveM key settings). It goes quiet once the repair is done, and starts switched on again with the next contract.
 - Any tier with a search zone can get a sonar by adding `sonar = true`. On a tier without a search zone it does nothing, and the server console warns you at startup.
 - Keep the whole search zone in mind when placing wrecks: the zone's centre is placed at a random spot up to 70% of the radius away from the wreck.
+
+### Urgent contracts
+
+Any contract can turn out to be urgent. The server rolls the chance when the player takes the contract, and the clock starts right away.
+
+- **The chance and the bonus** are set in `Config.UrgentContract` in `config/shared.lua`. `chance` is a percentage (decimals like `0.5` work, `0` turns urgent contracts off). `bonusPercentage` is a percentage of the tier's base `pay`, without the level bonus, rounded down.
+- **The time limit** is set per tier with `urgentTimeLimit`, in seconds. A tier without one never gets urgent contracts. Time a normal run of each tier, from taking the contract to finishing the repair, and set the limit a little above it: the wreck search takes much longer than a buoy near the harbour.
+- **What the player sees:** a notification when the contract turns out to be urgent, a warning at each moment in `warnings` (in seconds left; moments that aren't shorter than the tier's limit are skipped), and then either "repaired in time" or "time's up".
+- **What counts** is the moment the repair is finished, not the trip back. The bonus is paid when the player reports back to the foreman, together with the pay. A repair finished in time also gets the bonus if the vessel is lost afterwards, just like the pay. When staff end the contract with `/offshore endjob`, a finished repair is paid out with its bonus too. A contract that ends through a disconnect, logout or resource restart is not paid out, so it gets no bonus either.
+- **Testing:** set `chance = 100` to make every contract urgent, and set it back afterwards.
 
 ### Admin commands
 
@@ -288,6 +303,8 @@ Fires when a contract has started: the deposit is paid, the vessel has spawned a
 | `pay` | number | What the job pays when it is finished |
 | `xp` | number | The XP the job gives when it is finished |
 | `vesselNetId` | number | The network id of the job vessel. Only valid while the job runs; the vessel is deleted when it ends. |
+| `urgent` | boolean | Whether this is an urgent contract |
+| `timeLimit` | number or nil | The seconds the player has to finish the repair. Only present on an urgent contract. |
 
 #### `mrpat_offshore_maintenance:jobFinished`
 
@@ -300,11 +317,14 @@ Fires once whenever a contract ends, however it ends.
 | `tier` | string | The tier id from `Config.Tiers` |
 | `outcome` | string | How the contract ended (see below) |
 | `repaired` | boolean | Whether the repair was finished |
-| `paidOut` | number | The pay the player actually received, without the deposit (0 if not paid) |
+| `paidOut` | number | The pay the player actually received, including any urgent bonus, without the deposit (0 if not paid) |
 | `xpGained` | number | The XP the player actually received (0 if none) |
 | `depositRefunded` | boolean | Whether the deposit was given back |
 | `totalXp` | number | The player's XP after the job |
 | `levelUp` | number or nil | The new level. Only present when the player reached a new level. |
+| `urgent` | boolean | Whether this was an urgent contract |
+| `inTime` | boolean | Whether the repair on an urgent contract was finished in time (always `false` on a normal contract) |
+| `urgentBonusPaid` | number | The urgent bonus the player actually received, also included in `paidOut` (0 if none) |
 
 Possible `outcome` values:
 
@@ -325,7 +345,6 @@ Possible `outcome` values:
 Ideas for future versions:
 
 - A sonar screen next to the beeping
-- Urgent contracts with a time limit and a bonus for finishing in time
 
 ## License
 

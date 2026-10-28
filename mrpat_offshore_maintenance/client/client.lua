@@ -15,8 +15,9 @@ local siteZone
 local depotPoint
 local depotMarker
 local depotBlip
-local sonarEnabled = true   -- switched by the keybind
-local sonarToken            -- which loop is the current one
+local sonarEnabled = true
+local sonarToken
+local urgentToken
 
 local inspectionSymptom
 local jobRepaired = false
@@ -38,6 +39,10 @@ local function notify(description, notifyType)
 		description = description,
 		type = notifyType or 'inform',
 	})
+end
+
+local function formatTime(seconds)
+	return ('%d:%02d'):format(math.floor(seconds / 60), math.floor(seconds % 60))
 end
 
 local function zoneCenter(coords, radius)
@@ -78,6 +83,34 @@ local function createMarker(coords, settings)
 		coords = vec3(coords.x, coords.y, coords.z + settings.offsetZ),
 		color = settings.color,
 	})
+end
+
+local function startUrgentTimer(secondsLeft)
+	local myToken = {}
+	urgentToken = myToken
+	local endsAt = GetGameTimer() + secondsLeft * 1000
+
+	-- only valid moments that fit inside this contract's limit, largest first
+	local warnings = {}
+	for _, seconds in ipairs(Config.UrgentContract.warnings or {}) do
+		if type(seconds) == 'number' and seconds > 0 and seconds < secondsLeft then
+			warnings[#warnings + 1] = seconds
+		end
+	end
+	table.sort(warnings, function(a, b) return a > b end)
+
+	CreateThread(function()
+		for _, seconds in ipairs(warnings) do
+			Wait(math.max(0, endsAt - seconds * 1000 - GetGameTimer()))
+			if urgentToken ~= myToken or jobRepaired then return end
+			notify(locale('urgent_warning', formatTime(seconds)), 'warning')
+		end
+
+		Wait(math.max(0, endsAt - GetGameTimer()))
+		if urgentToken ~= myToken or jobRepaired then return end
+		urgentToken = nil
+		notify(locale('urgent_missed'), 'error')
+	end)
 end
 
 local function removeBlip(blip)
@@ -145,6 +178,7 @@ local function cleanupJob()
 	sonarToken = nil
 	sonarKey:disable(true)
 	sonarEnabled = true
+	urgentToken = nil
 end
 
 local function buildDiagnoseMenu()
@@ -224,7 +258,7 @@ local function buildRepairMenu()
 					return
 				end
 
-				local ok, result = lib.callback.await('mrpat_om:repair', false, repairId)
+				local ok, result, inTime = lib.callback.await('mrpat_om:repair', false, repairId)
 				if not ok then
 					notify(locale(result or 'repair_error'), 'error')
 					if result == 'repair_wrong' then
@@ -232,6 +266,14 @@ local function buildRepairMenu()
 						lib.showContext(repairMenuId)
 					end
 					return
+				end
+
+				if inTime then
+					notify(locale('urgent_in_time'), 'success')
+					urgentToken = nil
+				elseif urgentToken then
+					notify(locale('urgent_missed'), 'error')
+					urgentToken = nil
 				end
 
 				jobRepaired = true
@@ -391,7 +433,7 @@ sonarKey = lib.addKeybind({
 })
 
 local function startJob(tierId, moneyType)
-	local ok, result, model, placement, netId, tType = lib.callback.await('mrpat_om:getContract', false, tierId, moneyType)
+	local ok, result, model, placement, netId, locType, urgent, secLeft = lib.callback.await('mrpat_om:getContract', false, tierId, moneyType)
 	if not ok then
 		notify(locale(result or 'contract_err'), 'error')
 		return
@@ -399,7 +441,7 @@ local function startJob(tierId, moneyType)
 
 	cleanupJob()
 
-	siteType = tType
+	siteType = locType
 	jobTier = Utils.getTier(tierId)
 	if jobTier.gear then
 		if Config.ClientGear then Config.ClientGear.equip(PlayerPedId()) end
@@ -412,6 +454,11 @@ local function startJob(tierId, moneyType)
 	end
 
 	notify(locale('contract_assigned'), 'success')
+
+	if urgent then
+		notify(locale('urgent_contract', formatTime(secLeft)), 'inform')
+		startUrgentTimer(secLeft)
+	end
 
 	if jobTier.blip == 'area' and type(jobTier.radius) == 'number' and jobTier.radius > 0 then
 		local center = zoneCenter(siteCoords, jobTier.radius)

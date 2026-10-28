@@ -1,5 +1,6 @@
 Utils = {}
 
+-- Shuffles a list in place (Fisher-Yates).
 Utils.shuffle = function(list)
 	for i = #list, 2, -1 do
 		local j = math.random(i)
@@ -7,6 +8,7 @@ Utils.shuffle = function(list)
 	end
 end
 
+-- True when the list contains the value.
 Utils.contains = function(list, value)
 	for _, item in ipairs(list) do
 		if value == item then
@@ -16,6 +18,7 @@ Utils.contains = function(list, value)
 	return false
 end
 
+-- The tier from Config.Tiers with this id, or nil when there is none.
 Utils.getTier = function(id)
 	for _, tier in ipairs(Config.Tiers) do
 		if tier.id == id then
@@ -24,6 +27,7 @@ Utils.getTier = function(id)
 	end
 end
 
+-- The level that belongs to this amount of XP.
 Utils.getLevel = function(xp)
 	local level = 1
 	for i, needed in ipairs(Config.Levels) do
@@ -34,6 +38,7 @@ Utils.getLevel = function(xp)
 	return level
 end
 
+-- True when the two lists have at least one value in common.
 Utils.overlaps = function(listA, listB)
 	for _, value in ipairs(listA) do
 		if Utils.contains(listB, value) then
@@ -43,12 +48,15 @@ Utils.overlaps = function(listA, listB)
 	return false
 end
 
+-- The tier's own deposit, or Config.Deposit when the tier has none.
 Utils.getDeposit = function(tier)
 	return tier.deposit or Config.Deposit
 end
 
+-- Every valid repair difficulty.
 Utils.difficulties = { 'easy', 'medium', 'hard' }
 
+-- The tier's valid difficulties, skipping invalid ones; { 'medium' } when none are left.
 Utils.getDifficulties = function(tier)
 	local difficulties = {}
 	if type(tier.difficulties) == 'table' then
@@ -66,6 +74,7 @@ Utils.getDifficulties = function(tier)
 	return difficulties
 end
 
+-- Prints a warning on the server only, so shared code doesn't warn twice.
 local serverWarningOnly = function(msg, ...)
 	if IsDuplicityVersion() then
 		lib.print.warn((msg):format(...))
@@ -74,6 +83,7 @@ end
 
 local defaultLevelCurve = { maxLevel = 20, firstLevelXp = 60, growth = 20 }
 
+-- Builds the XP needed per level from a level curve; invalid values fall back to the defaults.
 Utils.buildLevels = function(curve)
 	curve = curve or {}
 
@@ -111,6 +121,7 @@ end
 
 Config.Levels = Utils.buildLevels(Config.LevelCurve)
 
+-- The highest tier a player of this level has unlocked, or nil when there is none.
 Utils.getHighestTier = function(level)
 	local highest
 	for _, tier in ipairs(Config.Tiers) do
@@ -121,6 +132,7 @@ Utils.getHighestTier = function(level)
 	return highest
 end
 
+-- The pay for a tier at this level: base pay, plus the level bonus only on the player's highest tier.
 Utils.getPay = function(tier, level)
 	local highestTier = Utils.getHighestTier(level)
 
@@ -134,4 +146,13 @@ Utils.getPay = function(tier, level)
 	local finalPay = tier.pay + math.floor(bonus)
 
 	return finalPay
+end
+
+-- The tier's urgent time limit in seconds, or nil when the tier can't get urgent contracts.
+Utils.getUrgentTimeLimit = function(tier)
+	local limit = tier.urgentTimeLimit
+	if type(limit) == 'number' and limit > 0 then
+		return limit
+	end
+	return nil
 end

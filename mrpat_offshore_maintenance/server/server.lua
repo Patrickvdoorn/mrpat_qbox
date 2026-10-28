@@ -69,24 +69,41 @@ local function getWorkContract(src, requiredState)
 end
 
 -- Checks to find possible issues at startup
-local function configCheckValue(name, zeroAllowed)
-	local value = Config[name]
+local function configCheckValue(name, value, zeroAllowed, maxValue)
+	local maxValueError = ''
+	if maxValue then
+		maxValueError = (' and at most %s'):format(maxValue)
+	end
 
+	local tooLow
 	if zeroAllowed then
-		if type(value) ~= 'number' or value < 0 then
-			lib.print.error(('Config.%s is "%s", but should be 0 or higher'):format(name, value))
-		end
+		tooLow = type(value) ~= 'number' or value < 0
 	else
-		if type(value) ~= 'number' or value <= 0 then
-			lib.print.error(('Config.%s is "%s", but should be higher than 0'):format(name, value))
-		end
+		tooLow = type(value) ~= 'number' or value <= 0
+	end
+
+	local tooHigh = not tooLow and maxValue and value > maxValue
+
+	if tooLow or tooHigh then
+		local minText = zeroAllowed and '0 or higher' or 'higher than 0'
+		lib.print.error(('Config.%s is "%s", but should be %s%s'):format(name, tostring(value), minText, maxValueError))
 	end
 end
 
 local function configCheckGeneralSettings()
-	configCheckValue('InteractionDistance', false)
-	configCheckValue('RepairDuration', false)
-	configCheckValue('Deposit', true)
+	configCheckValue('InteractionDistance', Config.InteractionDistance, false)
+	configCheckValue('RepairDuration', Config.RepairDuration, false)
+	configCheckValue('Deposit', Config.Deposit, true)
+	configCheckValue('UrgentContract.chance', Config.UrgentContract.chance, true, 100)
+	configCheckValue('UrgentContract.bonusPercentage', Config.UrgentContract.bonusPercentage, true)
+
+	if Config.UrgentContract and type(Config.UrgentContract.warnings) == 'table' then
+		for _, value in ipairs(Config.UrgentContract.warnings) do
+			if type(value) ~= 'number' or value <= 0 then
+				lib.print.error(('Config.UrgentContract.warnings is "%s", but should be number higher than 0. This warning will be skipped'):format(value))
+			end
+		end
+	end
 end
 
 local requiredTierFields = { 'id', 'level', 'types', 'vehicle', 'pay', 'xp' }
@@ -152,6 +169,10 @@ local function configCheckTiers()
 						lib.print.error(('tier "%s" has an invalid difficulty "%s" which will be skipped. Only use %s'):format(tier.id, difficulty, table.concat(Utils.difficulties, ', ')))
 					end
 				end
+			end
+
+			if tier.urgentTimeLimit ~= nil and not Utils.getUrgentTimeLimit(tier) then
+				lib.print.error(('tier "%s" has an invalid urgentTimeLimit "%s", contracts will never be urgent'):format(tier.id, tostring(tier.urgentTimeLimit)))
 			end
 
 			for _, typeName in ipairs(tier.types) do
@@ -354,6 +375,9 @@ local function endJob(src, notifyClient, outcome)
 		totalXp = contract.totalXp,
 		levelUp = contract.levelUp,
 		repaired = contract.state == 'repaired',
+		urgent = contract.urgent,
+		inTime = contract.inTime,
+		urgentBonusPaid = contract.urgentBonusPaid,
 	})
 
 	activeContracts[src] = nil
@@ -385,6 +409,13 @@ local function finishJob(src, contract, refundDeposit, outcome)
 		payment = contract.pay
 	end
 
+	if contract.urgent and contract.inTime then
+		contract.urgentBonusPaid = contract.urgentBonusPay
+	end
+
+	payment = payment + contract.urgentBonusPaid
+	contract.paidOut = contract.pay + contract.urgentBonusPaid
+
 	exports.qbx_core:AddMoney(src, 'bank', payment, locale('offshore_maintenance_pay'))
 
 	local newLevel = Utils.getLevel(totalXp)
@@ -396,16 +427,15 @@ local function finishJob(src, contract, refundDeposit, outcome)
 
 	contract.levelUp = levelUp
 
-	contract.paidOut = contract.pay
 	contract.xpGained = contract.xp
 	contract.depositRefunded = refundDeposit
 
 	previousJobs[contract.citizenid] = { location = contract.location, fault = contract.fault }
 
 	if refundDeposit then
-		log(src, contract.citizenid, outcome, ('returned the vessel and got deposit (%s), pay (%s) and XP (%s), totalxp is now %s'):format(contract.deposit, contract.pay, contract.xp, totalXp))
+		log(src, contract.citizenid, outcome, ('returned the vessel and got deposit (%s), pay (%s) and XP (%s), totalxp is now %s. Urgent contract: "%s", inTime: "%s"'):format(contract.deposit, contract.paidOut, contract.xp, totalXp, contract.urgent, contract.inTime))
 	else
-		log(src, contract.citizenid, outcome, ('didn\'t return vessel so lost deposit (%s). Received pay (%s) and XP (%s), totalxp is now %s'):format(contract.deposit, contract.pay, contract.xp, totalXp))
+		log(src, contract.citizenid, outcome, ('didn\'t return vessel so lost deposit (%s). Received pay (%s) and XP (%s), totalxp is now %s. Urgent contract: "%s", inTime: "%s"'):format(contract.deposit, contract.paidOut, contract.xp, totalXp, contract.urgent, contract.inTime))
 	end
 
 	endJob(src, true, outcome)
@@ -637,6 +667,12 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 
 	local playerXp = Config.Experience.get(src)
 
+	local timeLimit = Utils.getUrgentTimeLimit(tier)
+	local urgent = timeLimit ~= nil and math.random() * 100 < Config.UrgentContract.chance
+	local secondsLeft = urgent and timeLimit or nil
+	local deadline = urgent and os.time() + timeLimit or nil
+	local urgentBonusPay = urgent and math.floor(Config.UrgentContract.bonusPercentage / 100 * tier.pay) or 0
+
 	activeContracts[src] = {
 		state = 'assigned',			-- assigned -> inspected -> repaired
 		location = locationIndex,
@@ -656,6 +692,11 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		xpGained = 0,
 		totalXp = playerXp,
 		depositRefunded = false,
+		urgent = urgent,
+		deadline = deadline,
+		inTime = false,
+		urgentBonusPay = urgentBonusPay,
+		urgentBonusPaid = 0,
 	}
 
 	local contract = activeContracts[src]
@@ -668,10 +709,12 @@ lib.callback.register('mrpat_om:getContract', function(src, tierId, moneyType)
 		deposit = contract.deposit,
 		pay = contract.pay,
 		xp = contract.xp,
+		urgent = contract.urgent,
+		timeLimit = secondsLeft,
 	})
 
-	log(src, citizenid, 'job_started', ('took a tier level %s job at %s, paid %s deposit by %s'):format(tier.level, location.label, deposit, moneyType))
-	return true, location.coords, propModel, location.placement, netId, location.type
+	log(src, citizenid, 'job_started', ('took a tier level %s job at %s, paid %s deposit by %s. Urgent = %s'):format(tier.level, location.label, deposit, moneyType, contract.urgent))
+	return true, location.coords, propModel, location.placement, netId, location.type, contract.urgent, secondsLeft
 end)
 
 lib.callback.register('mrpat_om:inspect', function(src)
@@ -723,6 +766,7 @@ lib.callback.register('mrpat_om:repair', function(src, repairId)
 	if not contract then
 		return false, err
 	end
+
 	if not Utils.contains(contract.repairOptions, repairId) then
 		log(src, contract.citizenid, 'invalid_repair', ('sent invalid repair: %s, while offers were: %s'):format(tostring(repairId), table.concat(contract.repairOptions, ', ')), 'suspicious')
 		return false, 'invalid_repair'
@@ -742,8 +786,11 @@ lib.callback.register('mrpat_om:repair', function(src, repairId)
 	end
 
 	contract.state = 'repaired'
+	if contract.urgent and contract.deadline then
+		contract.inTime = os.time() < contract.deadline
+	end
 	log(src, contract.citizenid, 'repair_done', ('finished a repair at %s'):format(jobSite(contract).label))
-	return true, 'repair_success'
+	return true, 'repair_success', contract.inTime
 end)
 
 lib.callback.register('mrpat_om:returnVessel', function(src)
