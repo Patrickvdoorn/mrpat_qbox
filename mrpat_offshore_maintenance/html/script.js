@@ -101,6 +101,12 @@ let codeGuess = [];
 let codeLength = 4;
 let codeAttempts = 6;
 
+//SONAR
+const sonarBox = document.getElementById('sonar');
+const sonarBars = document.getElementById('sonarBars');
+
+let sonarTotal = 0;
+
 window.addEventListener('message', (event) => {
 	const data = event.data;
 	if (data.action === 'open' && data.game === 'voltmeter') {
@@ -244,6 +250,19 @@ window.addEventListener('message', (event) => {
 		updateCodeStatus();
 
 		codeBox.classList.add('show');
+
+	} else if (data.action === 'sonarPing') {
+
+		sonarBox.classList.add('show');
+		if (data.total !== sonarTotal) {
+			buildSonarBars(data.total);
+		}
+		lightSonarBars(data.bars);
+		pulseSonar();
+
+	} else if (data.action === 'sonarOff') {
+		
+		sonarBox.classList.remove('show');
 
 	} else if (data.action === 'close') {
 
@@ -648,6 +667,32 @@ function finishCode(success) {
 		codeBox.classList.remove('show');
 		sendResult(success);
 	}, success ? 800 : 1800);
+}
+
+//SONAR
+function buildSonarBars(total) {
+	sonarBars.innerHTML = '';
+
+	for (let i = 0; i < total; i++) {
+		const bar = document.createElement('div');
+		bar.className = 'sonar-bar';
+		bar.style.height = ((i + 1) / total * 100) + '%';
+		sonarBars.appendChild(bar);
+	}
+
+	sonarTotal = total;
+}
+
+function lightSonarBars(bars) {
+	for (let i = 0; i < sonarBars.children.length; i++) {
+		sonarBars.children[i].classList.toggle('lit', i < bars);
+	}
+}
+
+function pulseSonar() {
+	sonarBars.classList.remove('pulse');
+	void sonarBars.offsetWidth;
+	sonarBars.classList.add('pulse');
 }
 
 // GENERIC

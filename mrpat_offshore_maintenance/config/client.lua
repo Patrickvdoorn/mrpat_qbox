@@ -83,6 +83,7 @@ Config.Sonar = {
 		{ distance = 0, interval = 0.25, },
 	},
 	sound = {soundName = '5_SEC_WARNING', soundSetName = 'HUD_MINI_GAME_SOUNDSET'},
+	display = true, -- shows a signal strength meter next to the beep (false: sound only)
 }
 
 Config.InteractKey = 'E' -- default key for the prompt on tiers with interactionType = 'prompt' (players can rebind it)

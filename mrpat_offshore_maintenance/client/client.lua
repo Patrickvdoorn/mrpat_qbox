@@ -178,6 +178,9 @@ local function cleanupJob()
 	sonarToken = nil
 	sonarKey:disable(true)
 	sonarEnabled = true
+	if Config.Sonar.display then
+		SendNUIMessage({ action = 'sonarOff' })
+	end
 	urgentToken = nil
 end
 
@@ -471,24 +474,35 @@ local function startJob(tierId, moneyType)
 			sonarKey:disable(false)
 
 			CreateThread(function()
+				local screenVisible = false
+
 				while sonarToken == myToken do
 					local playerCoords = GetEntityCoords(PlayerPedId())
-					-- one round of the sonar
-					if not sonarEnabled or jobRepaired then
-						Wait(250)
-					elseif #(playerCoords - center) > jobTier.radius then
+					local quiet = not sonarEnabled or jobRepaired or inspectionSymptom or #(playerCoords - center) > jobTier.radius
+
+					if quiet then
+						if screenVisible then
+							SendNUIMessage({ action = 'sonarOff' })
+							screenVisible = false
+						end
 						Wait(250)
 					else
 						local distance = #(playerCoords - siteCoords)
 						local interval
-						for _, range in ipairs(Config.Sonar.ranges) do
+						local bars
+						for index, range in ipairs(Config.Sonar.ranges) do
 							if distance >= range.distance then
 								interval = range.interval
+								bars = index
 								break
 							end
 						end
 
 						PlaySoundFrontend(-1, Config.Sonar.sound.soundName, Config.Sonar.sound.soundSetName, true)
+						if Config.Sonar.display then
+							SendNUIMessage({ action = 'sonarPing', bars = bars, total = #Config.Sonar.ranges })
+							screenVisible = true
+						end
 						Wait(interval * 1000)
 					end
 				end

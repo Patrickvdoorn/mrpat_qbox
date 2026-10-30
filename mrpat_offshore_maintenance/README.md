@@ -14,7 +14,7 @@ A job takes players from the harbor to open water and back, with a real decision
    - **Surface (from level 1):** a work vessel and a waypoint to a navigation buoy or a mooring float, which appears as the player approaches.
    - **Seabed (from level 6):** a work vessel, a search zone on the map instead of an exact point, and diving gear (a visible tank and mask). Anchor the vessel, dive down and find the equipment by its marker.
    - **Deep sea (from level 11):** a submarine and a search zone. The equipment sits between 80 and 140 metres down. Go too deep and the submarine warns of crush depth, so careless pilots lose their vehicle and their deposit.
-   - **Wreck search (from level 16):** a submarine, a large search zone and a sonar that beeps faster the closer you get to a leaking wreck.
+   - **Wreck search (from level 16):** a submarine, a large search zone and a sonar that beeps faster, and shows a stronger signal, the closer you get to a leaking wreck.
 4. **Inspect** the equipment with a quick skill check to discover the symptom. From the vessel or in the water this is an ox_target option on the equipment; from the submarine a key prompt appears once you are close enough ("[E] Inspect equipment").
 5. **Run diagnostics.** The tests depend on the equipment: navigation buoys get voltage, lamp and pressure tests, mooring floats get chain tension, buoyancy and mooring line checks, seabed and deep-sea equipment gets voltage, pressure and signal tests, pipelines also get a flow test, pump stations get voltage, pressure, flow and vibration tests, hydraulic units get voltage, pressure, signal and hydraulics tests, and wrecks get a leak trace and a hull scan. Each reading stays visible in the menu, next to the symptom.
 6. **Choose the repair** from four options. Three are plausible decoys that only the readings rule out, and each repair has its own minigame. Once the repair is done, the job site disappears from the map.
@@ -74,7 +74,7 @@ Everything that shapes the job lives in three config files:
 | `Config.InspectDuration` | client | Time an inspection takes | 2.5 s |
 | `Config.InteractKey` | client | Default key for the prompt on contract types with `interactionType = 'prompt'` (players can rebind it) | E |
 | `Config.Anchor` | client | Anchor key and maximum speed for anchoring | G |
-| `Config.Sonar` | client | Sonar key, the distance ranges with their beep interval, and the beep sound | J, 5 ranges from every 3 s to every 0.25 s |
+| `Config.Sonar` | client | Sonar key, the distance ranges with their beep interval, the beep sound, and the signal meter on screen | J, 5 ranges from every 3 s to every 0.25 s, meter on |
 | `Config.ClientGear` | client | What happens when diving gear goes on and off (`equip` / `unequip` hook); `false` leaves the gear to another resource | built-in scuba with a visible tank and mask |
 | `Config.ScubaModels` | client | The mask and tank props | GTA scuba props |
 | `Config.Currency` | client | Currency symbol shown in the menus | $ |
@@ -167,7 +167,8 @@ The deep-sea and wreck tiers use the `submersible2` submarine, start at the same
 The wreck tier sends players to a leaking wreck somewhere in a search zone of 300 metres. The zone is too big to search by sight, so the tier has `sonar = true`.
 
 - The sonar starts when the player enters the search zone, and beeps faster the closer they get to the wreck. The ranges and their beep speed are in `Config.Sonar` in `config/client.lua`, from far to close: each range's `distance` is its lower bound and `interval` is the time between beeps in seconds.
-- Players can switch the sonar off and on with a key (`J` by default, rebindable in the FiveM key settings). It goes quiet once the repair is done, and starts switched on again with the next contract.
+- Next to the beep, a small signal meter at the top of the screen shows one bar per range: the farthest range lights 1 bar, the closest lights them all, and the lit bars flash with every beep. It is built from the same ranges as the sound, so the two always agree, and it gives no direction: players still have to search. Adding a range adds a bar. Set `display = false` in `Config.Sonar` for sound only.
+- Players can switch the sonar off and on with a key (`J` by default, rebindable in the FiveM key settings). It goes quiet, and the meter disappears, outside the search zone, once the player starts the inspection, and once the repair is done. It starts switched on again with the next contract.
 - Any tier with a search zone can get a sonar by adding `sonar = true`. On a tier without a search zone it does nothing, and the server console warns you at startup.
 - Keep the whole search zone in mind when placing wrecks: the zone's centre is placed at a random spot up to 70% of the radius away from the wreck.
 
@@ -339,12 +340,6 @@ Possible `outcome` values:
 | `resource_stopped` | The resource stopped; the deposit is refunded |
 
 `outcome` says how the contract ended and `repaired` says whether the work was done, so a lost vessel after a finished repair is `outcome = 'vessel_lost'` with `repaired = true`.
-
-## Coming next
-
-Ideas for future versions:
-
-- A sonar screen next to the beeping
 
 ## License
 

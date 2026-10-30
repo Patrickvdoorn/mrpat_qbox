@@ -370,3 +370,63 @@ kbd {
 .code-row.shake {
 	animation: shake 0.15s linear 3;
 }
+
+/* SONAR: a small signal strength gauge at the top of the screen */
+.sonar {
+	display: none;
+	position: absolute;
+	top: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+	min-width: 120px;
+	padding: 10px 14px 12px;
+	background: linear-gradient(180deg, #1c2128 0%, #12161b 100%);
+	border: 1px solid #2e3640;
+	border-radius: 10px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	color: #d7dde4;
+}
+
+.sonar.show {
+	display: block;
+	animation: sonar-fade 0.2s ease-out;
+}
+
+@keyframes sonar-fade {
+	from { opacity: 0; }
+	to   { opacity: 1; }
+}
+
+.sonar .header {
+	margin-bottom: 8px;
+}
+
+/* the row of bars */
+.sonar-bars {
+	display: flex;
+	align-items: flex-end;
+	gap: 5px;
+	height: 36px;
+}
+
+/* one bar; JavaScript sets its height */
+.sonar-bar {
+	width: 10px;
+	background: #2a323b;
+	border-radius: 2px;
+}
+
+.sonar-bar.lit {
+	background: #ffb347;
+	box-shadow: 0 0 6px rgba(255, 179, 71, 0.6);
+}
+
+/* a short flash of the lit bars at every ping */
+.sonar-bars.pulse .sonar-bar.lit {
+	animation: sonar-ping 0.25s ease-out;
+}
+
+@keyframes sonar-ping {
+	from { filter: brightness(1.6); box-shadow: 0 0 12px rgba(255, 179, 71, 0.9); }
+	to   { filter: brightness(1);   box-shadow: 0 0 6px rgba(255, 179, 71, 0.6); }
+}
